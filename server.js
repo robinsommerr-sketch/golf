@@ -11,13 +11,8 @@ if (!process.env.DATABASE_URL || !process.env.JWT_SECRET) {
   console.error('DATABASE_URL og JWT_SECRET må settes. Se README.md');
   process.exit(1);
 }
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 5,
-  ssl: {
-    rejectUnauthorized: false
-  }
-});
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5,
+  ssl: process.env.DATABASE_SSL === 'disable' ? false : { rejectUnauthorized: true } });
 await pool.query(`CREATE TABLE IF NOT EXISTS golf_users (
  id BIGSERIAL PRIMARY KEY, username VARCHAR(18) UNIQUE NOT NULL,
  password_hash TEXT NOT NULL, games INTEGER NOT NULL DEFAULT 0,
@@ -48,7 +43,7 @@ io.on('connection',s=>{
  s.on('start',(_,ack=()=>{})=>{const r=rooms.get(s.data.room);if(!r||r.host!==s.id)return ack({error:'Bare lobbyverten kan starte'});r.started=true;broadcast(r);ack({ok:true})});
  s.on('shot',({dx,dy}={},ack=()=>{})=>{const r=rooms.get(s.data.room),p=r?.players.get(s.id);if(!r?.started||!p||p.finished)return ack({error:'Kan ikke slå nå'});if(!Number.isFinite(dx)||!Number.isFinite(dy)||Math.hypot(dx,dy)>110||Math.hypot(dx,dy)<5)return ack({error:'Ugyldig slag'});if(Date.now()-p.lastShot<800)return ack({error:'Vent før neste slag'});p.lastShot=Date.now();p.strokes++;r.shots.push({id:s.id,dx,dy,t:Date.now()});if(r.shots.length>30)r.shots.shift();io.to(r.code).emit('shot',{id:s.id,dx,dy,strokes:p.strokes});broadcast(r);ack({ok:true})});
  s.on('position',({x,y,finished}={})=>{const r=rooms.get(s.data.room),p=r?.players.get(s.id);if(!r?.started||!p||!Number.isFinite(x)||!Number.isFinite(y))return;p.x=Math.max(0,Math.min(900,x));p.y=Math.max(0,Math.min(560,y));if(finished&&Math.hypot(p.x-760,p.y-280)<13)p.finished=true;broadcast(r)});
- s.on('next',async(_,ack=()=>{})=>{const r=rooms.get(s.data.room);if(!r||r.host!==s.id)return ack({error:'Bare lobbyverten kan gå videre'});if(![...r.players.values()].every(p=>p.finished))return ack({error:'Alle må fullføre hullet først'});if(r.hole>=2)return ack({error:'Runden er ferdig'});r.hole++;r.shots=[];for(const p of r.players.values()){p.x=105;p.y=280;p.finished=false}broadcast(r);io.to(r.code).emit('new-hole');ack({ok:true})});
+ s.on('next',async(_,ack=()=>{})=>{const r=rooms.get(s.data.room);if(!r||r.host!==s.id)return ack({error:'Bare lobbyverten kan gå videre'});if(![...r.players.values()].every(p=>p.finished))return ack({error:'Alle må fullføre hullet først'});if(r.hole>=8)return ack({error:'Runden er ferdig'});r.hole++;r.shots=[];for(const p of r.players.values()){p.x=105;p.y=280;p.finished=false}broadcast(r);io.to(r.code).emit('new-hole');ack({ok:true})});
  s.on('disconnect',()=>cleanRoom(s));
 });
 function join(r,s){s.join(r.code);s.data.room=r.code;r.players.set(s.id,{id:s.id,name:s.data.user.username,strokes:0,finished:false,x:105,y:280,lastShot:0});broadcast(r)}
