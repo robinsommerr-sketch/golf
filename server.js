@@ -11,8 +11,13 @@ if (!process.env.DATABASE_URL || !process.env.JWT_SECRET) {
   console.error('DATABASE_URL og JWT_SECRET må settes. Se README.md');
   process.exit(1);
 }
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5,
-  ssl: process.env.DATABASE_SSL === 'disable' ? false : { rejectUnauthorized: true } });
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 5,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
 await pool.query(`CREATE TABLE IF NOT EXISTS golf_users (
  id BIGSERIAL PRIMARY KEY, username VARCHAR(18) UNIQUE NOT NULL,
  password_hash TEXT NOT NULL, games INTEGER NOT NULL DEFAULT 0,
