@@ -1,32 +1,26 @@
-# Daily Golf Multiplayer (Render + Supabase)
+# Fairway Club - redesign
 
-Nettleserspill med tre 2D-baner, kontoer og lobbykoder for opptil åtte spillere. Node.js, Socket.IO og PostgreSQL. Dette er en prototype, ikke et ferdig konkurransesikkert golfspill. Ballposisjoner beregnes i nettleseren og kan manipuleres. Spillstatistikk lagres ikke permanent ennå. Lobbyer lagres i serverminnet og forsvinner når gratisserveren sover eller starter på nytt.
+Fullstendig redesign av tidligere Fairway Nine. Ny responsiv nettside, nytt banedesign på Canvas, ny profilvisning, leaderboard, scorekort, private lobbyer, timing-baserte slag, 3 banetemaer og 9 hull.
 
-## 1. Opprett gratis Supabase-database
-1. Gå til https://supabase.com/dashboard og opprett prosjekt.
-2. Åpne **Connect** i prosjektet og finn **Session pooler** PostgreSQL connection string. Bruk Session pooler fordi Render kan mangle IPv6-støtte som direkte Supabase-tilkobling krever.
-3. Sett inn databasepassordet i tilkoblingsstrengen. Dersom passordet inneholder spesialtegn må de URL-kodes.
-4. Tabellen `golf_users` opprettes automatisk ved oppstart. Du trenger ikke bruke Supabase Auth, appen bruker egen innlogging med bcrypt-passordhash.
+## Oppdatering av Render/GitHub
+1. Pakk ut ZIP.
+2. Erstatt innholdet i GitHub-repositoryet med filene i denne mappen (inkludert `server.js`, `public/index.html`, `package.json` og `render.yaml`).
+3. Behold eksisterende `DATABASE_URL` og `JWT_SECRET` i Render. Ikke legg `.env` eller passord i GitHub.
+4. Commit, og vent på ny Render-deploy.
+5. Åpne nettsiden, logg inn og test lobbyen med to nettlesere.
 
-## 2. Last opp til GitHub
-1. Lag et nytt privat GitHub-repository.
-2. Last opp **innholdet i denne mappen** til repoet (inkludert `render.yaml`, `package.json`, `public/` og `server.js`).
-3. Ikke last opp `.env` eller databasepassord.
+## Miljøvariabler
+- `DATABASE_URL`: Supabase Postgres connection URI (Session pooler anbefales).
+- `JWT_SECRET`: tilfeldig, lang hemmelig streng.
+- `DATABASE_SSL`: standard er sikker TLS-verifisering; `disable` bare for lokal database uten TLS.
+- `DATABASE_CA_CERT`: valgfritt, korrekt CA-sertifikat i PEM-format hvis Supabase-pooleren ikke kan verifiseres med standard trust store. Ikke slå av sertifikatverifisering på produksjon.
+- `PORT`: settes av Render.
 
-## 3. Opprett gratis Render-server
-1. Åpne https://dashboard.render.com/ og velg **New > Blueprint**. Koble til GitHub-repoet.
-2. Render leser `render.yaml` og oppretter en gratis web service.
-3. Oppgi `DATABASE_URL` fra Supabase når Render spør. `JWT_SECRET` genereres automatisk av Render.
-4. Vent til deploy viser **Live**, og åpne `https://<ditt-navn>.onrender.com`.
-5. Lag en bruker, opprett lobby, del kode med en venn og test i to nettlesere.
+## Spillkontroller
+- Klikk på banen for å velge retning og starte kraftmåleren.
+- Klikk igjen eller trykk mellomrom for å slå.
+- Piltastene finjusterer retning før du låser.
+- Ballen lander, ruller og påvirkes av vind/hindre. På greenen beregnes putter automatisk.
 
-## Lokal kjøring
-Node.js 20+ og PostgreSQL kreves. Sett `DATABASE_URL` og `JWT_SECRET` i miljøvariabler, og sett `DATABASE_SSL=disable` hvis lokal Postgres ikke bruker TLS. Kjør `npm install` og `npm start`, åpne http://localhost:3000.
-
-## Viktige begrensninger
-- Render Free går i dvale ved inaktivitet. Lobbyer slettes ved restart.
-- Supabase gratisprosjekter kan pauses ved inaktivitet og har kvoter som kan endres.
-- Brukerkontoer lagres i Postgres og overlever normalt serverrestart. Passord lagres som bcrypt-hasher.
-- Posisjoner/fysikk er foreløpig klientstyrt. Dette må flyttes til serveren før konkurranser eller globale topplister.
-- Ingen e-postverifisering, passordreset eller permanent runde-historikk ennå.
-- For ekte produksjon bør det legges til kontosikkerhet, personvernerklæring, datalagringsrutiner og bedre misbruksvern.
+## Begrensninger
+Dette er en omfattende prototype, ikke en eksakt kopi av Daily Holes. Fysikken kjøres i klienten og er ikke serverautoritativ. Spillet bør testes manuelt med flere samtidige spillere. Serveren validerer grunnleggende slag og score, men et produksjonsspill bør beregne slag på serveren, ha reconnect-støtte og persistent match-historikk.
