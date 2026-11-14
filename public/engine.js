@@ -3,6 +3,20 @@
  */
 export const W=900,H=560;
 export const TEE={x:105,y:280},CUP={x:760,y:280};
+// Carry yardages are game-balanced approximations, not real-world guarantees.
+export const CLUBS=[
+ {id:'driver',name:'Driver',short:'DR',carry:238,roll:.12,flight:1.05,category:'Utslag',loft:10},
+ {id:'wood',name:'3-wood',short:'3W',carry:211,roll:.105,flight:1.05,category:'Lange slag',loft:15},
+ {id:'hybrid',name:'Hybrid',short:'HY',carry:180,roll:.085,flight:1,category:'Lange slag',loft:21},
+ {id:'iron5',name:'5-jern',short:'5I',carry:160,roll:.07,flight:.91,category:'Jern',loft:27},
+ {id:'iron7',name:'7-jern',short:'7I',carry:139,roll:.055,flight:.88,category:'Jern',loft:34},
+ {id:'iron9',name:'9-jern',short:'9I',carry:115,roll:.039,flight:.83,category:'Jern',loft:41},
+ {id:'pw',name:'Pitching wedge',short:'PW',carry:91,roll:.028,flight:.79,category:'Wedges',loft:46},
+ {id:'sw',name:'Sand wedge',short:'SW',carry:67,roll:.019,flight:.75,category:'Wedges',loft:56},
+ {id:'lw',name:'Lob wedge',short:'LW',carry:44,roll:.008,flight:.70,category:'Wedges',loft:60},
+ {id:'putter',name:'Putter',short:'PT',carry:24,roll:0,flight:0,category:'Kortspill',loft:3}
+];
+export const getClub=id=>CLUBS.find(c=>c.id===id)||CLUBS[0];
 export const COURSE_NAMES=['Kystbanen','Skogsbanen','Fjellbanen'];
 export const COURSE_EMOJI=['🌊','🌲','🏔️'];
 export const COURSE_TAGS=['COASTAL LINKS','DEEP WOODS','ALPINE HEIGHTS'];
@@ -40,6 +54,8 @@ export function buildHole(course=0,index=0,dailySeed=0){
  const turnA=Math.round((r()-.5)*255+(course===1?-50:course===2?50:0));
  const turnB=Math.round((r()-.5)*225+(course===1?55:course===2?-30:0));
  const wind=Math.round((r()-.5)*9),par=PARS[index],hazards=[];
+ // Each hole has a real yardage. World pixels and yards are intentionally separate.
+ const lengthYards=par===3?145+Math.round(r()*38):par===4?306+Math.round(r()*75):451+Math.round(r()*64);
  const variation=(n)=>(r()-.5)*n;
  // Hazard positions are deterministic and vary by hole, not just by course.
  const templates=[
@@ -50,7 +66,7 @@ export function buildHole(course=0,index=0,dailySeed=0){
  for(const z of templates){hazards.push({type:z.type,x:clamp(z.x+variation(82),235,714),y:clamp(z.y+variation(65),85,469),rx:z.rx+variation(10),ry:z.ry+variation(8)})}
  if(index%3===1)hazards.push({type:course===0?'sand':course===1?'tree':'rock',x:454+variation(74),y:275+variation(75),rx:27,ry:20});
  if(index%3===2)hazards.push({type:course===0?'water':course===1?'sand':'rock',x:596+variation(40),y:274+variation(46),rx:33,ry:21});
- const h={seed,course,index,name:HOLE_NAMES[course][index],par,wind,turnA,turnB,hazards,dailySeed};
+ const h={seed,course,index,name:HOLE_NAMES[course][index],par,wind,lengthYards,turnA,turnB,hazards,dailySeed};
  return h;
 }
 export function hazardAt(h,x,y){for(const z of h.hazards){const a=(x-z.x)/z.rx,b=(y-z.y)/z.ry;if(a*a+b*b<1)return z.type}return null}
@@ -145,18 +161,53 @@ export function drawBall(ctx,b,{own=false,ghost=false,time=0}={}){
  ctx.restore();
 }
 export function drawAim(ctx,b,angle,locked=false){if(!b||b.moving)return;const x=b.x,y=b.y;ctx.save();ctx.setLineDash(locked?[]:[9,8]);ctx.lineWidth=locked?4:3;ctx.strokeStyle=locked?'#ffe49a':'#f7efbb';ctx.shadowColor='#ffedaa';ctx.shadowBlur=locked?10:5;ctx.beginPath();ctx.moveTo(x+Math.cos(angle)*14,y+Math.sin(angle)*14);ctx.lineTo(x+Math.cos(angle)*195,y+Math.sin(angle)*195);ctx.stroke();ctx.setLineDash([]);const tx=x+Math.cos(angle)*195,ty=y+Math.sin(angle)*195;ctx.fillStyle='#ffe49a';ctx.beginPath();ctx.moveTo(tx+Math.cos(angle)*10,ty+Math.sin(angle)*10);ctx.lineTo(tx+Math.cos(angle+2.55)*9,ty+Math.sin(angle+2.55)*9);ctx.lineTo(tx+Math.cos(angle-2.55)*9,ty+Math.sin(angle-2.55)*9);ctx.fill();ctx.restore()}
-export function planShot(h,from,angle,power){
- power=clamp(power,.04,1);const flightLength=45+power*398;
- const windShift=h.wind*(power*.95)*3;
- const lx=clamp(from.x+Math.cos(angle)*flightLength+windShift,15,W-15);
- const ly=clamp(from.y+Math.sin(angle)*flightLength+windShift*.38,15,H-15);
- const atLanding=hazardAt(h,lx,ly);let roll=16+power*65;
- if(atLanding==='sand')roll*=.10;
- if(atLanding==='tree'||atLanding==='rock')roll*=.12;
+export function yardsPerPixel(h){return h.lengthYards/(CUP.x-TEE.x)}
+export function distanceYards(h,from){return Math.round(Math.hypot(from.x-CUP.x,from.y-CUP.y)*yardsPerPixel(h))}
+export function lieAt(h,from){return hazardAt(h,from.x,from.y)||'fairway'}
+export function recommendClub(h,from){
+ const left=distanceYards(h,from),lie=lieAt(h,from);
+ if(left>245)return 'driver';
+ if(left<35)return 'putter';
+ const candidates=CLUBS.filter(c=>c.id!=='putter').map(c=>({id:c.id,d:Math.abs(left-(c.carry*(1+c.roll)*(lie==='sand'?.8:1)))}));
+ return candidates.sort((a,b)=>a.d-b.d)[0]?.id||'iron7';
+}
+export function shotDistanceEstimate(h,from,angle,power,clubId='driver'){
+ const club=getClub(clubId),p=clamp(power,0,1),lie=lieAt(h,from);
+ const lieMult=lie==='sand'?.77:lie==='tree'||lie==='rock'?.88:1;
+ const carry=club.carry*p*lieMult;
+ const windYards=club.id==='putter'?0:h.wind*Math.cos(angle-.30)*p*1.25;
+ const carryYards=Math.max(0,carry+windYards);
+ const rollYards=club.id==='putter'?0:carry*club.roll;
+ return {club,lie,carryYards,rollYards,totalYards:carryYards+rollYards,windYards};
+}
+export function planShot(h,from,angle,power,clubId='driver'){
+ power=clamp(power,.01,1);
+ const est=shotDistanceEstimate(h,from,angle,power,clubId),scale=1/yardsPerPixel(h);
+ const flightLength=est.carryYards*scale;
+ const lx=clamp(from.x+Math.cos(angle)*flightLength,15,W-15);
+ const ly=clamp(from.y+Math.sin(angle)*flightLength,15,H-15);
+ const atLanding=hazardAt(h,lx,ly);let roll=est.rollYards*scale;
+ if(atLanding==='sand')roll*=.12;
+ if(atLanding==='tree'||atLanding==='rock')roll*=.17;
  if(atLanding==='water')roll=0;
  const ex=clamp(lx+Math.cos(angle)*roll,15,W-15),ey=clamp(ly+Math.sin(angle)*roll,15,H-15);
  const terrain=atLanding==='water'?'water':hazardAt(h,ex,ey)==='water'?'water':atLanding||hazardAt(h,ex,ey)||'fairway';
- return {from:{x:from.x,y:from.y},landing:{x:lx,y:ly},end:{x:ex,y:ey},angle,power,terrain,flightMs:680+power*460,rollMs:terrain==='water'?280:430+power*130,apex:24+power*65};
+ return {from:{x:from.x,y:from.y},landing:{x:lx,y:ly},end:{x:ex,y:ey},angle,power,clubId:est.club.id,terrain,
+   carryYards:est.carryYards,rollYards:est.rollYards,totalYards:est.totalYards,
+   flightMs:est.club.id==='putter'?340:600+power*540,
+   rollMs:terrain==='water'?240:est.club.id==='putter'?420:400+power*260,
+   apex:est.club.id==='putter'?0:(16+power*78)*est.club.flight};
+}
+export function drawLandingGuide(ctx,h,from,angle,power,clubId){
+ if(!from||!Number.isFinite(from.x)||!Number.isFinite(from.y))return;
+ const shot=planShot(h,from,angle,Math.max(.01,power),clubId);
+ ctx.save();const p=shot.landing;
+ ctx.strokeStyle='rgba(245,250,218,.82)';ctx.lineWidth=2;ctx.setLineDash([5,6]);ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.lineTo(p.x,p.y);ctx.stroke();ctx.setLineDash([]);
+ ctx.beginPath();ctx.arc(p.x,p.y,12,0,Math.PI*2);ctx.strokeStyle='#fff6ce';ctx.lineWidth=2.5;ctx.stroke();
+ ctx.beginPath();ctx.arc(p.x,p.y,3.5,0,Math.PI*2);ctx.fillStyle='#ffde8a';ctx.fill();
+ const text=Math.round(shot.carryYards)+' yd';ctx.font='700 12px DM Sans,sans-serif';
+ const boxW=Math.max(58,ctx.measureText(text).width+18),tx=clamp(p.x-boxW/2,6,W-boxW-6),ty=clamp(p.y-38,8,H-30);
+ ctx.fillStyle='#102b23e8';ctx.beginPath();ctx.roundRect(tx,ty,boxW,24,9);ctx.fill();ctx.textAlign='center';ctx.fillStyle='#f8f8e9';ctx.fillText(text,tx+boxW/2,ty+16);ctx.restore();
 }
 export function sampleShot(s,ms){
  if(ms<=s.flightMs){const u=clamp(ms/s.flightMs,0,1);return {x:lerp(s.from.x,s.landing.x,u),y:lerp(s.from.y,s.landing.y,u),z:Math.sin(u*Math.PI)*s.apex,done:false,stage:'flight'}}
