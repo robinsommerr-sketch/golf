@@ -1,1 +1,21 @@
-{"name":"daily-golf-multiplayer","version":"2.0.0","private":true,"type":"module","scripts":{"start":"node server.js","check":"node --check server.js"},"engines":{"node":">=20"},"dependencies":{"express":"^4.21.2","socket.io":"^4.8.1","pg":"^8.13.1","bcryptjs":"^2.4.3","jsonwebtoken":"^9.0.2"}}
+{
+  "name": "daily-golf-multiplayer",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1",
+    "pg": "^8.13.1",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2"
+  }
+}
